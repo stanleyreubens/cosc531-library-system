@@ -1,3 +1,84 @@
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from datetime import date, timedelta
+
+# Flask app setup
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
+
+# Database setup
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(database_url)
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Models
+class Book(Base):
+    __tablename__ = 'books'
+    id = Column(Integer, primary_key=True)
+    isbn = Column(String, unique=True, nullable=False)
+    title = Column(String, nullable=False)
+    author = Column(String)
+    rating = Column(Float)
+    checked_out = Column(Boolean, default=False)
+
+class Student(Base):
+    __tablename__ = 'students'
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String, nullable=False)
+    group = Column(String, nullable=False)
+
+class BorrowRecord(Base):
+    __tablename__ = 'borrow_records'
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
+    book_id = Column(Integer, ForeignKey('books.id'), nullable=False)
+    borrow_date = Column(Date, nullable=False)
+    return_date = Column(Date, nullable=False)
+    student = relationship("Student")
+    book = relationship("Book")
+
+# Create tables
+Base.metadata.create_all(engine)
+
+# Add this to app.py after the models but before the routes
+def init_db():
+    Base.metadata.create_all(engine)
+    
+    # Add sample data if database is empty
+    if not session.query(Student).first():
+        # Add students
+        students = [
+            Student(first_name="Alice", group="A"),
+            Student(first_name="Bob", group="B"),
+            Student(first_name="Charlie", group="C")
+        ]
+        for student in students:
+            session.add(student)
+        
+        # Add sample books
+        books = [
+            Book(isbn="123", title="Python Programming", author="John Doe"),
+            Book(isbn="456", title="Web Development", author="Jane Smith"),
+            Book(isbn="789", title="Data Science", author="Bob Wilson")
+        ]
+        for book in books:
+            session.add(book)
+            
+        session.commit()
+
+# Call init_db when the app starts
+with app.app_context():
+    init_db()
+
+# Basic routes
 @app.route('/borrow', methods=['GET', 'POST'])
 def borrow():
     if request.method == 'POST':
@@ -71,3 +152,7 @@ def find():
             borrowed_books.append((record.book.title, record.return_date))
 
     return render_template('find.html', borrowed_books=borrowed_books)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
