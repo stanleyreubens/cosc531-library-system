@@ -1,17 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container">
-    <h2 class="mb-4">Borrow a Book</h2>
-    <form method="POST" class="col-md-6">
-        <div class="mb-3">
-            <label for="student_name" class="form-label">Student Name:</label>
-            <input type="text" class="form-control" id="student_name" name="student_name" required>
-        </div>
-        <div class="mb-3">
-            <label for="book_title" class="form-label">Book Title:</label>
-            <input type="text" class="form-control" id="book_title" name="book_title" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Borrow Book</button>
-    </form>
-</div>
+<h2>Borrow a Book</h2>
+<form method="POST" action="{{ url_for('borrow') }}" class="mt-4">
+    <div class="mb-3">
+        <label for="student_name" class="form-label">Student Name:</label>
+        <input type="text" class="form-control" id="student_name" name="student_name" required>
+    </div>
+    <div class="mb-3">
+        <label for="book_title" class="form-label">Book Title:</label>
+        <input type="text" class="form-control" id="book_title" name="book_title" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Borrow Book</button>
+</form>
 {% endblock %}
