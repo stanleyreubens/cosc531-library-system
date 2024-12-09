@@ -10,15 +10,21 @@ import pandas as pd
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
 
-# SQLAlchemy setup with Heroku PostgreSQL support
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Near the top of app.py, update the database configuration:
+try:
+    # SQLAlchemy setup with Heroku PostgreSQL support
+    database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
+    if database_url and database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(database_url)
-Base = declarative_base()
-Session = sessionmaker(bind=engine)
-session = Session()
+    engine = create_engine(database_url)
+    Base = declarative_base()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    app.logger.info("Database connection established successfully")
+except Exception as e:
+    app.logger.error(f"Database connection error: {str(e)}")
+    raise
 
 # Models
 class Book(Base):
