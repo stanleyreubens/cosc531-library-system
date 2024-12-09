@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Return a Book</h2>
-<form method="POST">
-    <label for="book_title">Book Title:</label>
-    <input type="text" name="book_title" required><br>
-    <button type="submit">Return</button>
-</form>
+<div class="container">
+    <h2 class="mb-4">Return a Book</h2>
+    <form method="POST" class="col-md-6">
+        <div class="mb-3">
+            <label for="book_title" class="form-label">Book Title:</label>
+            <input type="text" class="form-control" id="book_title" name="book_title" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Return Book</button>
+    </form>
+</div>
 {% endblock %}

@@ -1,34 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Library Book Status</h2>
-
-<h3>Book Status Overview</h3>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Title</th>
-            <th>Author</th>
-            <th>Rating</th>
-            <th>Status</th>
-            <th>Rating Compare</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for book in books %}
-        <tr>
-            <td>{{ book.title }}</td>
-            <td>{{ book.author }}</td>
-            <td>{{ book.rating }}</td>
-            <td>{{ book.get_status() }}</td>
-            <td>
-                {% if book.rating > avg_rating %}
-                    <span class="text-success">Above Average</span>
-                {% else %}
-                    <span class="text-warning">Below Average</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="container">
+    <h2 class="mb-4">Book Status</h2>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Rating</th>
+                    <th>Status</th>
+                    <th>Rating Compare</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for book in books %}
+                <tr>
+                    <td>{{ book.title }}</td>
+                    <td>{{ book.author }}</td>
+                    <td>{{ book.rating }}</td>
+                    <td>{{ book.get_status() }}</td>
+                    <td>
+                        {% if book.rating > avg_rating %}
+                        <span class="text-success">Above Average</span>
+                        {% else %}
+                        <span class="text-warning">Below Average</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}
