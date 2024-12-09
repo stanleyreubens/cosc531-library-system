@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import date, timedelta
@@ -9,118 +9,10 @@ import os
 app = Flask(__name__)
 app.secret_key = 'dev_key_123'
 
-# SQLAlchemy setup with SQLite
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# SQLAlchemy setup
+Base = declarative_base()
 
-engine = create_engine(DATABASE_URL)
-
-# Models
-class Book(Base):
-    __tablename__ = 'books'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    isbn = Column(String, unique=True, nullable=False)
-    title = Column(String, nullable=False)
-    author = Column(String)
-    checked_out = Column(Boolean, default=False)
-
-class Student(Base):
-    __tablename__ = 'students'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    first_name = Column(String, nullable=False)
-    group = Column(String, nullable=False)
-    preferred_books = relationship("PreferredBook", back_populates="student")
-    borrow_records = relationship("BorrowRecord", back_populates="student")
-
-class BorrowRecord(Base):
-    __tablename__ = 'borrow_records'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
-    book_id = Column(Integer, ForeignKey('books.id'), nullable=False)
-    borrow_date = Column(Date, nullable=False)
-    return_date = Column(Date, nullable=False)
-    student = relationship("Student")
-    book = relationship("Book")
-
-@app.before_first_request
-def initialize_database():
-    try:
-        Base.metadata.create_all(engine)
-        init_db()  # Your function to populate initial data
-    except Exception as e:
-        print(f"Error initializing database: {e}")
-    
-    # Add books if they don't exist
-    if not session.query(Book).first():
-        try:
-            books_data = [
-                # All 78 books from previous message
-                # (I can repeat them if you'd like)
-            ]
-
-            # Add books to database
-            for book_data in books_data:
-                book = Book(**book_data)
-                session.add(book)
-            session.commit()
-            print(f"Successfully added {len(books_data)} books to database")
-
-        except Exception as e:
-            print(f"Error populating books: {e}")
-            session.rollback()
-
-    # Add students if they don't exist
-    if not session.query(Student).first():
-        try:
-            # Student data organized by groups
-            students_data = {
-                'A': [
-                    {"first_name": "Stanley", "preferred_books": ["Boulder", "Whale", "The Gospel According to the New World"]},
-                    {"first_name": "Linda", "preferred_books": ["Standing Heavy", "Time Shelter", "Is Mother Dead"]},
-                    {"first_name": "Michael", "preferred_books": ["Jimi Hendrix Live in Lviv", "The Birthday Party", "While We Were Dreaming"]}
-                ],
-                'B': [
-                    {"first_name": "Emily", "preferred_books": ["Pyre", "Still Born", "A System So Magnificent It Is Blinding"]},
-                    {"first_name": "David", "preferred_books": ["Ninth Building", "Paradais", "Heaven"]},
-                    {"first_name": "Lisa", "preferred_books": ["Love in the Big City", "Happy Stories, Mostly", "Elena Knows"]}
-                ],
-                'C': [
-                    {"first_name": "James", "preferred_books": ["The Book of Mother", "More Than I Love My Life", "Phenotypes"]},
-                    {"first_name": "Emma", "preferred_books": ["A New Name: Septology VI-VII", "After the Sun", "Tomb of Sand"]},
-                    {"first_name": "Daniel", "preferred_books": ["The Books of Jacob", "Cursed Bunny", "The War of the Poor"]}
-                ],
-                'D': [
-                    {"first_name": "Anna", "preferred_books": ["When We Cease to Understand the World", "Wretchedness", "An Inventory of Losses"]},
-                    {"first_name": "William", "preferred_books": ["At Night All Blood is Black", "I Live in the Slums", "In Memory of Memory"]},
-                    {"first_name": "Sophie", "preferred_books": ["Minor Detail", "Summer Brother", "The Dangers of Smoking in Bed"]}
-                ]
-            }
-
-            # Add students and their group information
-            for group, students in students_data.items():
-                for student_info in students:
-                    student = Student(
-                        first_name=student_info["first_name"],
-                        group=group
-                    )
-                    session.add(student)
-                    session.flush()  # Get the student ID
-
-                    # Add preferred books
-                    for book_title in student_info["preferred_books"]:
-                        preferred_book = PreferredBook(
-                            student_id=student.id,
-                            book_title=book_title
-                        )
-                        session.add(preferred_book)
-            session.commit()
-            print("Successfully added students and their preferred books")
-        except Exception as e:
-            print(f"Error populating students: {e}")
-            session.rollback()
-
-# Make sure you have these models defined
+# Define models
 class PreferredBook(Base):
     __tablename__ = 'preferred_books'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -152,8 +44,57 @@ class BorrowRecord(Base):
     book_id = Column(Integer, ForeignKey('books.id'), nullable=False)
     borrow_date = Column(Date, nullable=False)
     return_date = Column(Date, nullable=False)
-    student = relationship("Student")
+    student = relationship("Student", back_populates="borrow_records")
     book = relationship("Book")
+
+# Database setup after models are defined
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+def init_db():
+    Base.metadata.create_all(engine)
+    
+    # Add books if they don't exist
+    if not session.query(Book).first():
+        try:
+            books_data = [
+                {"isbn": "123456789", "title": "Sample Book 1", "author": "Author 1", "rating": 4.5},
+                {"isbn": "987654321", "title": "Sample Book 2", "author": "Author 2", "rating": 4.0}
+            ]
+            for book_data in books_data:
+                book = Book(**book_data)
+                session.add(book)
+            session.commit()
+        except Exception as e:
+            print(f"Error populating books: {e}")
+            session.rollback()
+
+    # Add students if they don't exist
+    if not session.query(Student).first():
+        try:
+            students_data = {
+                'A': ["Stanley", "Linda", "Michael"],
+                'B': ["Emily", "David", "Lisa"],
+                'C': ["James", "Emma", "Daniel"],
+                'D': ["Anna", "William", "Sophie"]
+            }
+            
+            for group, names in students_data.items():
+                for name in names:
+                    student = Student(first_name=name, group=group)
+                    session.add(student)
+            session.commit()
+        except Exception as e:
+            print(f"Error populating students: {e}")
+            session.rollback()
+
+# Initialize database
+init_db()
 
 @app.route('/')
 def index():
@@ -161,12 +102,9 @@ def index():
 
 @app.route('/book_stats')
 def book_stats():
-    # Get books with ratings above/below average
     avg_rating = session.query(func.avg(Book.rating)).scalar()
     high_rated = session.query(Book).filter(Book.rating > avg_rating).all()
     low_rated = session.query(Book).filter(Book.rating <= avg_rating).all()
-    
-    # Get borrowed/available books
     borrowed = session.query(Book).filter_by(checked_out=True).all()
     available = session.query(Book).filter_by(checked_out=False).all()
     
@@ -200,60 +138,72 @@ def find_group():
 @app.route('/borrow', methods=['GET', 'POST'])
 def borrow():
     if request.method == 'POST':
-        student_name = request.form['student_name']
-        book_title = request.form['book_title']
-        student = session.query(Student).filter_by(first_name=student_name).first()
-        book = session.query(Book).filter_by(title=book_title).first()
+        try:
+            student_name = request.form['student_name']
+            book_title = request.form['book_title']
+            student = session.query(Student).filter_by(first_name=student_name).first()
+            book = session.query(Book).filter_by(title=book_title).first()
 
-        if not student:
-            flash(f"Student '{student_name}' not found!")
-            return redirect(url_for('borrow'))
-        if not book:
-            flash(f"Book '{book_title}' not found!")
-            return redirect(url_for('borrow'))
-        if book.checked_out:
-            flash(f"Book '{book_title}' is already borrowed!")
-            return redirect(url_for('borrow'))
+            if not student:
+                flash(f"Student '{student_name}' not found!")
+                return redirect(url_for('borrow'))
+            if not book:
+                flash(f"Book '{book_title}' not found!")
+                return redirect(url_for('borrow'))
+            if book.checked_out:
+                flash(f"Book '{book_title}' is already borrowed!")
+                return redirect(url_for('borrow'))
 
-        record = BorrowRecord(
-            student_id=student.id,
-            book_id=book.id,
-            borrow_date=date.today(),
-            return_date=date.today() + timedelta(days=14)
-        )
-        book.checked_out = True
-        session.add(record)
-        session.commit()
-        flash(f"'{book_title}' successfully borrowed by {student_name}!")
-        return redirect(url_for('index'))
+            record = BorrowRecord(
+                student_id=student.id,
+                book_id=book.id,
+                borrow_date=date.today(),
+                return_date=date.today() + timedelta(days=14)
+            )
+            book.checked_out = True
+            session.add(record)
+            session.commit()
+            flash(f"'{book_title}' successfully borrowed by {student_name}!")
+            return redirect(url_for('index'))
+        except Exception as e:
+            print(f"Error in borrow: {e}")
+            session.rollback()
+            flash("An error occurred while processing your request.")
+            return redirect(url_for('borrow'))
 
     return render_template('borrow.html')
 
 @app.route('/return', methods=['GET', 'POST'])
 def return_book():
     if request.method == 'POST':
-        book_title = request.form['book_title']
-        book = session.query(Book).filter_by(title=book_title).first()
+        try:
+            book_title = request.form['book_title']
+            book = session.query(Book).filter_by(title=book_title).first()
 
-        if not book:
-            flash(f"Book '{book_title}' not found!")
-            return redirect(url_for('return_book'))
-        if not book.checked_out:
-            flash(f"Book '{book_title}' is not borrowed!")
-            return redirect(url_for('return_book'))
+            if not book:
+                flash(f"Book '{book_title}' not found!")
+                return redirect(url_for('return_book'))
+            if not book.checked_out:
+                flash(f"Book '{book_title}' is not borrowed!")
+                return redirect(url_for('return_book'))
 
-        book.checked_out = False
-        session.commit()
-        flash(f"'{book_title}' successfully returned!")
-        return redirect(url_for('index'))
+            book.checked_out = False
+            session.commit()
+            flash(f"'{book_title}' successfully returned!")
+            return redirect(url_for('index'))
+        except Exception as e:
+            print(f"Error in return_book: {e}")
+            session.rollback()
+            flash("An error occurred while processing your request.")
+            return redirect(url_for('return_book'))
 
     return render_template('return.html')
 
 @app.route('/find', methods=['GET', 'POST'])
 def find():
-    try:
-        borrowed_books = []
-        if request.method == 'POST':
+    borrowed_books = []
+    if request.method == 'POST':
+        try:
             student_name = request.form['student_name']
             student = session.query(Student).filter_by(first_name=student_name).first()
 
@@ -273,12 +223,12 @@ def find():
                 if record.book.title not in seen_books:
                     borrowed_books.append((record.book.title, record.return_date))
                     seen_books.add(record.book.title)
+        except Exception as e:
+            print(f"Error in find: {e}")
+            flash("An error occurred while processing your request.")
+            return redirect(url_for('find'))
 
-        return render_template('find.html', borrowed_books=borrowed_books)
-    except Exception as e:
-        print(f"Error in find route: {e}")
-        flash("An error occurred. Please try again.")
-        return redirect(url_for('index'))
+    return render_template('find.html', borrowed_books=borrowed_books)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
