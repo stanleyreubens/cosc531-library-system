@@ -1,5 +1,6 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import date, timedelta
@@ -7,15 +8,15 @@ import pandas as pd
 
 # Flask app setup
 app = Flask(__name__)
-app.secret_key = "secret_key_for_flash_messages"
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_for_testing')
 
-# SQLAlchemy setup
-Base = declarative_base()
-import os
+# SQLAlchemy setup with Heroku PostgreSQL support
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
-if database_url.startswith("postgres://"):
+if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(database_url)
+Base = declarative_base()
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -26,7 +27,11 @@ class Book(Base):
     isbn = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     author = Column(String)
+    rating = Column(Float)
     checked_out = Column(Boolean, default=False)
+
+    def get_status(self):
+        return "Checked Out" if self.checked_out else "Available"
 
 class PreferredBook(Base):
     __tablename__ = 'preferred_books'
@@ -49,61 +54,84 @@ class BorrowRecord(Base):
     book_id = Column(Integer, ForeignKey('books.id'), nullable=False)
     borrow_date = Column(Date, nullable=False)
     return_date = Column(Date, nullable=False)
-
     student = relationship("Student")
     book = relationship("Book")
 
-# Create tables
-Base.metadata.create_all(engine)
-
-# Populate books and students
 def populate_data():
-    # First load all books
-    if not session.query(Book).first():
-        data = pd.read_csv('longlist3.csv')
-        for _, row in data.iterrows():
-            book = Book(isbn=row['isbn'], title=row['title'], author=row['author'])
-            session.add(book)
-        session.commit()
+    try:
+        # First load all books
+        if not session.query(Book).first():
+            csv_path = os.path.join(os.path.dirname(__file__), 'longlist3.csv')
+            data = pd.read_csv(csv_path)
+            for _, row in data.iterrows():
+                book = Book(
+                    isbn=row['isbn'],
+                    title=row['title'],
+                    author=row['author'],
+                    rating=float(row.get('rating', 0))
+                )
+                session.add(book)
+            session.commit()
+            app.logger.info("Books loaded successfully")
         
-    # Then set up students with real book preferences
-    if not session.query(Student).first():
-        # Read books from database to ensure we use real titles
-        available_books = session.query(Book).all()
-        book_titles = [book.title for book in available_books]
-        
-        students_data = [
-            # Group A
-            {"first_name": "Alice", "group": "A", "preferred_books": book_titles[0:3]},
-            {"first_name": "Emma", "group": "A", "preferred_books": book_titles[3:6]},
-            {"first_name": "Michael", "group": "A", "preferred_books": book_titles[6:9]},
+        # Then set up students with real book preferences
+        if not session.query(Student).first():
+            available_books = session.query(Book).all()
+            book_titles = [book.title for book in available_books]
             
-            # Group B
-            {"first_name": "Bob", "group": "B", "preferred_books": book_titles[9:12]},
-            {"first_name": "Sarah", "group": "B", "preferred_books": book_titles[12:15]},
-            {"first_name": "James", "group": "B", "preferred_books": book_titles[15:18]},
+            students_data = [
+                # Group A
+                {"first_name": "Alice", "group": "A", "preferred_books": book_titles[0:3]},
+                {"first_name": "Emma", "group": "A", "preferred_books": book_titles[3:6]},
+                {"first_name": "Michael", "group": "A", "preferred_books": book_titles[6:9]},
+                
+                # Group B
+                {"first_name": "Bob", "group": "B", "preferred_books": book_titles[9:12]},
+                {"first_name": "Sarah", "group": "B", "preferred_books": book_titles[12:15]},
+                {"first_name": "James", "group": "B", "preferred_books": book_titles[15:18]},
+                
+                # Group C
+                {"first_name": "Charlie", "group": "C", "preferred_books": book_titles[18:21]},
+                {"first_name": "Lisa", "group": "C", "preferred_books": book_titles[21:24]},
+                {"first_name": "David", "group": "C", "preferred_books": book_titles[24:27]},
+                
+                # Group D
+                {"first_name": "Diana", "group": "D", "preferred_books": book_titles[27:30]},
+                {"first_name": "John", "group": "D", "preferred_books": book_titles[30:33]},
+                {"first_name": "Mary", "group": "D", "preferred_books": book_titles[33:36]}
+            ]
             
-            # Group C
-            {"first_name": "Charlie", "group": "C", "preferred_books": book_titles[18:21]},
-            {"first_name": "Lisa", "group": "C", "preferred_books": book_titles[21:24]},
-            {"first_name": "David", "group": "C", "preferred_books": book_titles[24:27]},
+            for student_info in students_data:
+                try:
+                    student = Student(
+                        first_name=student_info["first_name"],
+                        group=student_info["group"]
+                    )
+                    session.add(student)
+                    session.flush()
+                    
+                    for book_title in student_info["preferred_books"]:
+                        preferred_book = PreferredBook(
+                            student_id=student.id,
+                            book_title=book_title
+                        )
+                        session.add(preferred_book)
+                except Exception as e:
+                    app.logger.error(f"Error adding student {student_info['first_name']}: {str(e)}")
+                    session.rollback()
+                    continue
             
-            # Group D
-            {"first_name": "Diana", "group": "D", "preferred_books": book_titles[27:30]},
-            {"first_name": "John", "group": "D", "preferred_books": book_titles[30:33]},
-            {"first_name": "Mary", "group": "D", "preferred_books": book_titles[33:36]}
-        ]
-        
-        for student_info in students_data:
-            student = Student(first_name=student_info["first_name"], group=student_info["group"])
-            session.add(student)
-            session.flush()
+            session.commit()
+            app.logger.info("Students and preferences loaded successfully")
             
-            for book_title in student_info["preferred_books"]:
-                preferred_book = PreferredBook(student_id=student.id, book_title=book_title)
-                session.add(preferred_book)
-        
-        session.commit()
+    except Exception as e:
+        app.logger.error(f"Error in populate_data: {str(e)}")
+        session.rollback()
+
+# Create tables and populate data
+with app.app_context():
+    Base.metadata.create_all(engine)
+    populate_data()
 
 # Routes
 @app.route('/')
@@ -128,7 +156,6 @@ def borrow():
             flash(f"Book '{book_title}' is already borrowed!")
             return redirect(url_for('borrow'))
 
-        # Borrow logic
         record = BorrowRecord(
             student_id=student.id,
             book_id=book.id,
@@ -156,7 +183,6 @@ def return_book():
             flash(f"Book '{book_title}' is not borrowed!")
             return redirect(url_for('return_book'))
 
-        # Return logic
         book.checked_out = False
         session.commit()
         flash(f"'{book_title}' successfully returned!")
@@ -166,17 +192,12 @@ def return_book():
 
 @app.route('/book_status')
 def book_status():
-    """Show all books and their status"""
     books = session.query(Book).all()
-    avg_rating = session.query(func.avg(Book.rating)).scalar()
-    
-    return render_template('book_status.html', 
-                         books=books, 
-                         avg_rating=avg_rating)
+    avg_rating = session.query(func.avg(Book.rating)).scalar() or 0
+    return render_template('book_status.html', books=books, avg_rating=avg_rating)
 
 @app.route('/student_lookup', methods=['GET', 'POST'])
 def student_lookup():
-    """Look up student's group and borrowed books"""
     if request.method == 'POST':
         student_name = request.form['student_name']
         student = session.query(Student).filter_by(first_name=student_name).first()
@@ -191,11 +212,9 @@ def student_lookup():
 
 @app.route('/group_view')
 def group_view():
-    """Show all groups and their members"""
     groups = {}
     for group in ['A', 'B', 'C', 'D']:
         groups[group] = session.query(Student).filter_by(group=group).all()
-    
     return render_template('group_view.html', groups=groups)
 
 @app.route('/preferences')
@@ -210,6 +229,12 @@ def view_preferences():
         }
     return render_template('preferences.html', preferences=preferences)
 
+@app.route('/book_ratings')
+def book_ratings():
+    books = session.query(Book).all()
+    avg_rating = session.query(func.avg(Book.rating)).scalar() or 0
+    return render_template('book_ratings.html', books=books, avg_rating=avg_rating)
+
 @app.route('/find', methods=['GET', 'POST'])
 def find():
     borrowed_books = []
@@ -221,15 +246,13 @@ def find():
             flash(f"Student '{student_name}' not found!")
             return redirect(url_for('find'))
 
-        # Retrieve unique borrow records for the student
         records = (
             session.query(BorrowRecord)
             .filter_by(student_id=student.id)
-            .distinct(BorrowRecord.book_id)  # Ensure uniqueness by book ID
+            .distinct(BorrowRecord.book_id)
             .all()
         )
 
-        # Create a set to track already displayed books
         seen_books = set()
         for record in records:
             if record.book.title not in seen_books:
@@ -238,7 +261,6 @@ def find():
 
     return render_template('find.html', borrowed_books=borrowed_books)
 
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
