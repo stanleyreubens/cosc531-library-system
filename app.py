@@ -10,10 +10,11 @@ app = Flask(__name__)
 app.secret_key = 'dev_key_123'
 
 # SQLAlchemy setup with SQLite
-engine = create_engine('sqlite:///library_management.db')
-Base = declarative_base()
-Session = sessionmaker(bind=engine)
-session = Session()
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(DATABASE_URL)
 
 # Models
 class Book(Base):
@@ -42,8 +43,13 @@ class BorrowRecord(Base):
     student = relationship("Student")
     book = relationship("Book")
 
-def init_db():
-    Base.metadata.create_all(engine)
+@app.before_first_request
+def initialize_database():
+    try:
+        Base.metadata.create_all(engine)
+        init_db()  # Your function to populate initial data
+    except Exception as e:
+        print(f"Error initializing database: {e}")
     
     # Add books if they don't exist
     if not session.query(Book).first():
@@ -245,29 +251,34 @@ def return_book():
 
 @app.route('/find', methods=['GET', 'POST'])
 def find():
-    borrowed_books = []
-    if request.method == 'POST':
-        student_name = request.form['student_name']
-        student = session.query(Student).filter_by(first_name=student_name).first()
+    try:
+        borrowed_books = []
+        if request.method == 'POST':
+            student_name = request.form['student_name']
+            student = session.query(Student).filter_by(first_name=student_name).first()
 
-        if not student:
-            flash(f"Student '{student_name}' not found!")
-            return redirect(url_for('find'))
+            if not student:
+                flash(f"Student '{student_name}' not found!")
+                return redirect(url_for('find'))
 
-        records = (
-            session.query(BorrowRecord)
-            .filter_by(student_id=student.id)
-            .distinct(BorrowRecord.book_id)
-            .all()
-        )
+            records = (
+                session.query(BorrowRecord)
+                .filter_by(student_id=student.id)
+                .distinct(BorrowRecord.book_id)
+                .all()
+            )
 
-        seen_books = set()
-        for record in records:
-            if record.book.title not in seen_books:
-                borrowed_books.append((record.book.title, record.return_date))
-                seen_books.add(record.book.title)
+            seen_books = set()
+            for record in records:
+                if record.book.title not in seen_books:
+                    borrowed_books.append((record.book.title, record.return_date))
+                    seen_books.add(record.book.title)
 
-    return render_template('find.html', borrowed_books=borrowed_books)
+        return render_template('find.html', borrowed_books=borrowed_books)
+    except Exception as e:
+        print(f"Error in find route: {e}")
+        flash("An error occurred. Please try again.")
+        return redirect(url_for('index'))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
