@@ -1,4 +1,3 @@
-cat > requirements.txt << EOL
 Flask==3.0.0
 gunicorn==21.2.0
 SQLAlchemy==2.0.0
@@ -6,4 +5,3 @@ pandas==2.2.0
 python-dateutil==2.8.2
 Jinja2==3.1.3
 psycopg2-binary==2.9.9
-EOL
