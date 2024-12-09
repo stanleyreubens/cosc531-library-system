@@ -4,6 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import date, timedelta
 import pandas as pd
+import random
+import os
 
 # Flask app setup
 app = Flask(__name__)
@@ -11,7 +13,6 @@ app.secret_key = "secret_key_for_flash_messages"
 
 # SQLAlchemy setup
 Base = declarative_base()
-import os
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -32,6 +33,8 @@ class Student(Base):
     __tablename__ = 'students'
     id = Column(Integer, primary_key=True, autoincrement=True)
     first_name = Column(String, nullable=False)
+    group = Column(String, nullable=False)
+    preferred_books = Column(String)  # Stores book IDs as a comma-separated string
 
 class BorrowRecord(Base):
     __tablename__ = 'borrow_records'
@@ -47,7 +50,7 @@ class BorrowRecord(Base):
 # Create tables
 Base.metadata.create_all(engine)
 
-# Populate books and students
+# Enhanced populate_data function to include groups and preferred books
 def populate_data():
     if not session.query(Book).first():
         data = pd.read_csv('longlist3.csv')
@@ -57,17 +60,45 @@ def populate_data():
         session.commit()
 
     if not session.query(Student).first():
-        students = ["Alice", "Bob", "Charlie", "David"]
-        for name in students:
-            session.add(Student(first_name=name))
+        students = ["Alice", "Bob", "Charlie", "David", "Eve"]
+        groups = ["A", "B", "C", "D"]
+        books = session.query(Book).all()
+        for i, student_name in enumerate(students):
+            preferred_books = ",".join(
+                str(book.id) for book in random.sample(books, 3)
+            )
+            student = Student(
+                first_name=student_name,
+                group=groups[i % len(groups)],
+                preferred_books=preferred_books,
+            )
+            session.add(student)
         session.commit()
 
-populate_data()
-
-# Routes
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/groups')
+def view_groups():
+    students = session.query(Student).all()
+    grouped_students = {}
+    for student in students:
+        group = student.group
+        if group not in grouped_students:
+            grouped_students[group] = []
+        grouped_students[group].append(student.first_name)
+    return render_template('groups.html', groups=grouped_students)
+
+@app.route('/preferences/<student_name>')
+def view_preferences(student_name):
+    student = session.query(Student).filter_by(first_name=student_name).first()
+    if not student:
+        flash(f"Student '{student_name}' not found!")
+        return redirect(url_for('index'))
+    preferred_books_ids = student.preferred_books.split(',')
+    preferred_books = [session.query(Book).filter_by(id=int(book_id)).first() for book_id in preferred_books_ids]
+    return render_template('preferences.html', student=student, books=preferred_books)
 
 @app.route('/borrow', methods=['GET', 'POST'])
 def borrow():
@@ -150,7 +181,6 @@ def find():
                 seen_books.add(record.book.title)
 
     return render_template('find.html', borrowed_books=borrowed_books)
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
