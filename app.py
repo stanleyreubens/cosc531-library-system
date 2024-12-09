@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
@@ -7,15 +8,19 @@ import pandas as pd
 
 # Flask app setup
 app = Flask(__name__)
-app.secret_key = "secret_key_for_flash_messages"
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_123')  # Get from environment or use default
 
-# SQLAlchemy setup
+# SQLAlchemy setup - Use DATABASE_URL from Heroku
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+engine = create_engine(database_url or 'sqlite:///library_management.db')
 Base = declarative_base()
-engine = create_engine('sqlite:///library_management.db')
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Models
+# Models remain the same
 class Book(Base):
     __tablename__ = 'books'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -36,29 +41,27 @@ class BorrowRecord(Base):
     book_id = Column(Integer, ForeignKey('books.id'), nullable=False)
     borrow_date = Column(Date, nullable=False)
     return_date = Column(Date, nullable=False)
-
     student = relationship("Student")
     book = relationship("Book")
 
-# Create tables
-Base.metadata.create_all(engine)
-
-# Populate books and students
 def populate_data():
     try:
         if not session.query(Book).first():
-            # Get the absolute path for the CSV file
-            csv_path = os.path.join(os.path.dirname(__file__), 'longlist3.csv')
-            data = pd.read_csv(csv_path)
-            for _, row in data.iterrows():
-                book = Book(
-                    isbn=str(row['isbn']),
-                    title=str(row['title']),
-                    author=str(row['author'])
-                )
-                session.add(book)
-            session.commit()
-            app.logger.info("Books loaded successfully")
+            # Use absolute path or read from environment variable
+            csv_path = os.environ.get('CSV_PATH', 'longlist3.csv')
+            if os.path.exists(csv_path):
+                data = pd.read_csv(csv_path)
+                for _, row in data.iterrows():
+                    book = Book(
+                        isbn=str(row['isbn']),
+                        title=str(row['title']),
+                        author=str(row['author'])
+                    )
+                    session.add(book)
+                session.commit()
+                app.logger.info("Books loaded successfully")
+            else:
+                app.logger.warning(f"CSV file not found at {csv_path}")
 
         if not session.query(Student).first():
             students = ["Alice", "Bob", "Charlie", "David"]
@@ -72,7 +75,8 @@ def populate_data():
         session.rollback()
 
 # Initialize database within app context
-with app.app_context():
+@app.before_first_request
+def init_db():
     try:
         Base.metadata.create_all(engine)
         populate_data()
@@ -80,7 +84,7 @@ with app.app_context():
     except Exception as e:
         app.logger.error(f"Database initialization error: {str(e)}")
 
-# Routes
+# Routes remain the same
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -103,7 +107,6 @@ def borrow():
             flash(f"Book '{book_title}' is already borrowed!")
             return redirect(url_for('borrow'))
 
-        # Borrow logic
         record = BorrowRecord(
             student_id=student.id,
             book_id=book.id,
@@ -131,7 +134,6 @@ def return_book():
             flash(f"Book '{book_title}' is not borrowed!")
             return redirect(url_for('return_book'))
 
-        # Return logic
         book.checked_out = False
         session.commit()
         flash(f"'{book_title}' successfully returned!")
@@ -150,15 +152,13 @@ def find():
             flash(f"Student '{student_name}' not found!")
             return redirect(url_for('find'))
 
-        # Retrieve unique borrow records for the student
         records = (
             session.query(BorrowRecord)
             .filter_by(student_id=student.id)
-            .distinct(BorrowRecord.book_id)  # Ensure uniqueness by book ID
+            .distinct(BorrowRecord.book_id)
             .all()
         )
 
-        # Create a set to track already displayed books
         seen_books = set()
         for record in records:
             if record.book.title not in seen_books:
@@ -166,7 +166,6 @@ def find():
                 seen_books.add(record.book.title)
 
     return render_template('find.html', borrowed_books=borrowed_books)
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
