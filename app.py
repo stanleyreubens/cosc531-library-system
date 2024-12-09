@@ -45,20 +45,40 @@ Base.metadata.create_all(engine)
 
 # Populate books and students
 def populate_data():
-    if not session.query(Book).first():
-        data = pd.read_csv('longlist3.csv')
-        for _, row in data.iterrows():
-            book = Book(isbn=row['isbn'], title=row['title'], author=row['author'])
-            session.add(book)
-        session.commit()
+    try:
+        if not session.query(Book).first():
+            # Get the absolute path for the CSV file
+            csv_path = os.path.join(os.path.dirname(__file__), 'longlist3.csv')
+            data = pd.read_csv(csv_path)
+            for _, row in data.iterrows():
+                book = Book(
+                    isbn=str(row['isbn']),
+                    title=str(row['title']),
+                    author=str(row['author'])
+                )
+                session.add(book)
+            session.commit()
+            app.logger.info("Books loaded successfully")
 
-    if not session.query(Student).first():
-        students = ["Alice", "Bob", "Charlie", "David"]
-        for name in students:
-            session.add(Student(first_name=name))
-        session.commit()
+        if not session.query(Student).first():
+            students = ["Alice", "Bob", "Charlie", "David"]
+            for name in students:
+                session.add(Student(first_name=name))
+            session.commit()
+            app.logger.info("Students loaded successfully")
+            
+    except Exception as e:
+        app.logger.error(f"Error in populate_data: {str(e)}")
+        session.rollback()
 
-populate_data()
+# Initialize database within app context
+with app.app_context():
+    try:
+        Base.metadata.create_all(engine)
+        populate_data()
+        app.logger.info("Database initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Database initialization error: {str(e)}")
 
 # Routes
 @app.route('/')
