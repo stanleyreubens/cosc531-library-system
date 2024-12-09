@@ -11,7 +11,11 @@ app.secret_key = "secret_key_for_flash_messages"
 
 # SQLAlchemy setup
 Base = declarative_base()
-engine = create_engine('sqlite:///library_management.db')
+import os
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///library_management.db')
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+engine = create_engine(database_url)
 Session = sessionmaker(bind=engine)
 session = Session()
 
