@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Find Borrowed Books</h2>
+<form method="POST">
+    <label for="student_name">Student Name:</label>
+    <input type="text" name="student_name" required><br>
+    <button type="submit">Find</button>
+</form>
+
+{% if borrowed_books %}
+    <h3>Borrowed Books:</h3>
+    <ul>
+        {% for title, return_date in borrowed_books %}
+            <li>{{ title }} - Return by {{ return_date }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+{% endblock %}
