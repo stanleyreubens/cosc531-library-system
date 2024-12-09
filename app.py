@@ -1,26 +1,21 @@
-import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import date, timedelta
-import pandas as pd
+import os
 
 # Flask app setup
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev_key_123')  # Get from environment or use default
+app.secret_key = 'dev_key_123'  # Hard-coded secret key
 
-# SQLAlchemy setup - Use DATABASE_URL from Heroku
-database_url = os.environ.get('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-
-engine = create_engine(database_url or 'sqlite:///library_management.db')
+# SQLAlchemy setup with SQLite
+engine = create_engine('sqlite:///library_management.db')
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Models remain the same
+# Models
 class Book(Base):
     __tablename__ = 'books'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -45,46 +40,29 @@ class BorrowRecord(Base):
     book = relationship("Book")
 
 def populate_data():
-    try:
-        if not session.query(Book).first():
-            # Use absolute path or read from environment variable
-            csv_path = os.environ.get('CSV_PATH', 'longlist3.csv')
-            if os.path.exists(csv_path):
-                data = pd.read_csv(csv_path)
-                for _, row in data.iterrows():
-                    book = Book(
-                        isbn=str(row['isbn']),
-                        title=str(row['title']),
-                        author=str(row['author'])
-                    )
-                    session.add(book)
-                session.commit()
-                app.logger.info("Books loaded successfully")
-            else:
-                app.logger.warning(f"CSV file not found at {csv_path}")
+    if not session.query(Book).first():
+        # Add sample books
+        sample_books = [
+            {"isbn": "123456789", "title": "Sample Book 1", "author": "Author 1"},
+            {"isbn": "987654321", "title": "Sample Book 2", "author": "Author 2"}
+        ]
+        for book_data in sample_books:
+            book = Book(**book_data)
+            session.add(book)
 
-        if not session.query(Student).first():
-            students = ["Alice", "Bob", "Charlie", "David"]
-            for name in students:
-                session.add(Student(first_name=name))
-            session.commit()
-            app.logger.info("Students loaded successfully")
-            
-    except Exception as e:
-        app.logger.error(f"Error in populate_data: {str(e)}")
-        session.rollback()
+    if not session.query(Student).first():
+        # Add sample students
+        students = ["Alice", "Bob", "Charlie", "David"]
+        for name in students:
+            session.add(Student(first_name=name))
+    
+    session.commit()
 
-# Initialize database within app context
 @app.before_first_request
 def init_db():
-    try:
-        Base.metadata.create_all(engine)
-        populate_data()
-        app.logger.info("Database initialized successfully")
-    except Exception as e:
-        app.logger.error(f"Database initialization error: {str(e)}")
+    Base.metadata.create_all(engine)
+    populate_data()
 
-# Routes remain the same
 @app.route('/')
 def index():
     return render_template('index.html')
