@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Book Statistics</h2>
+
+<h3>Rating Statistics (Average Rating: {{ avg_rating|round(2) }})</h3>
+<div class="row">
+    <div class="col">
+        <h4>Higher Than Average Rating</h4>
+        <ul class="list-group">
+            {% for book in high_rated %}
+            <li class="list-group-item">
+                {{ book.title }} (Rating: {{ book.rating }})
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<h3>Book Availability</h3>
+<div class="row mt-4">
+    <div class="col">
+        <h4>Borrowed Books</h4>
+        <ul class="list-group">
+            {% for book in borrowed %}
+            <li class="list-group-item">{{ book.title }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="col">
+        <h4>Available Books</h4>
+        <ul class="list-group">
+            {% for book in available %}
+            <li class="list-group-item">{{ book.title }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}
