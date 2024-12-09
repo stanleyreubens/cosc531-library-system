@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Student Lookup</h2>
+
+<form method="POST" class="mb-4">
+    <div class="form-group">
+        <label for="student_name">Enter Student Name:</label>
+        <input type="text" class="form-control" id="student_name" name="student_name" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Look Up</button>
+</form>
+
+{% if student %}
+    <h3>Student Information</h3>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5>{{ student.first_name }}</h5>
+            <p>Group: {{ student.group }}</p>
+        </div>
+    </div>
+
+    <h3>Borrowed Books</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Book Title</th>
+                <th>Borrow Date</th>
+                <th>Due Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in borrowed_books %}
+            <tr>
+                <td>{{ record.book.title }}</td>
+                <td>{{ record.borrow_date }}</td>
+                <td>{{ record.return_date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+{% endblock %}
