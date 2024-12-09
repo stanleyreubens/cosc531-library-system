@@ -1,35 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container">
-    <h2 class="mb-4">Find Borrowed Books</h2>
-    <form method="POST" class="col-md-6 mb-4">
-        <div class="mb-3">
-            <label for="student_name" class="form-label">Student Name:</label>
-            <input type="text" class="form-control" id="student_name" name="student_name" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Find Books</button>
-    </form>
+<h2>Find Borrowed Books</h2>
+<form method="POST">
+    <label for="student_name">Student Name:</label>
+    <input type="text" name="student_name" required><br>
+    <button type="submit">Find</button>
+</form>
 
-    {% if borrowed_books %}
+{% if borrowed_books %}
     <h3>Borrowed Books:</h3>
-    <div class="table-responsive">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Book Title</th>
-                    <th>Return Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for title, return_date in borrowed_books %}
-                <tr>
-                    <td>{{ title }}</td>
-                    <td>{{ return_date }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-</div>
+    <ul>
+        {% for title, return_date in borrowed_books %}
+            <li>{{ title }} - Return by {{ return_date }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
 {% endblock %}

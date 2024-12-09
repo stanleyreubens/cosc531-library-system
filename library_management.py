@@ -41,13 +41,13 @@ class BorrowRecord(Base):
     student = relationship("Student")
     book = relationship("Book")
 
-# for SQLite database
+# Initialize the SQLite database
 engine = create_engine('sqlite:///library_management.db')
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# populate the db with books from longlist csv file
+# Populate the database with books from a CSV
 def populate_books(data_path):
     data = pd.read_csv(data_path)
     for _, row in data.iterrows():
@@ -70,7 +70,7 @@ def populate_books(data_path):
             session.add(book)
     session.commit()
 
-# some smaple student data
+# Populate the database with students
 def add_students():
     students = [
         {"first_name": "Alice", "last_name": "Smith", "group": "A"},

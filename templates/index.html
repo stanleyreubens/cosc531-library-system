@@ -1,15 +1,4 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Welcome to Library Management System</h1>
-<div class="row mt-4">
-    <div class="col-md-4">
-        <a href="{{ url_for('borrow') }}" class="btn btn-primary">Borrow a Book</a>
-    </div>
-    <div class="col-md-4">
-        <a href="{{ url_for('return_book') }}" class="btn btn-primary">Return a Book</a>
-    </div>
-    <div class="col-md-4">
-        <a href="{{ url_for('find') }}" class="btn btn-primary">Find Books</a>
-    </div>
-</div>
+<h2>Welcome to the Library Management System!</h2>
 {% endblock %}
